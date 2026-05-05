@@ -9,22 +9,20 @@ import (
 	"time"
 )
 
-// cacheControlValue applies to every cacheable response. The data is loaded
-// once at startup and never changes at runtime, so a long max-age plus
-// `immutable` is correct — clients with a fresh response can hold it for an
-// hour without revalidating, and `immutable` tells them not to bother
-// revalidating on user-triggered reload either.
-const cacheControlValue = "public, max-age=3600, immutable"
+// cacheControlValue applies to every cacheable response. The index is
+// refreshable at runtime, so we stay short and require revalidation — the
+// ETag handshake (304) is cheap, and `immutable` would be a lie now that
+// the corpus can change.
+const cacheControlValue = "public, max-age=60, must-revalidate"
 
 // Cache adds ETag + Cache-Control headers on 200 responses and short-circuits
 // matching If-None-Match requests with 304 Not Modified.
 //
-// The ETag is the same for every response in a given server lifetime,
-// because the underlying index is built once at startup. Conceptually,
-// "this server's enum corpus" is the cacheable resource; individual
-// endpoints are projections of it.
-func Cache(etag string, next http.Handler) http.Handler {
+// etagFn is called per-request so the ETag tracks the current index even
+// after a refresh swaps it.
+func Cache(etagFn func() string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		etag := etagFn()
 		if matches(r.Header.Get("If-None-Match"), etag) {
 			h := w.Header()
 			h.Set("ETag", etag)

@@ -5,9 +5,25 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
+
+// Duration is time.Duration with TOML/text unmarshalling, so config can use
+// strings like "30s" or "5m".
+type Duration time.Duration
+
+func (d *Duration) UnmarshalText(text []byte) error {
+	v, err := time.ParseDuration(string(text))
+	if err != nil {
+		return err
+	}
+	*d = Duration(v)
+	return nil
+}
+
+func (d Duration) Std() time.Duration { return time.Duration(d) }
 
 // Config is the top-level configuration for the server.
 type Config struct {
@@ -27,6 +43,16 @@ type Source struct {
 	URL  string `toml:"url"`
 	Path string `toml:"path"`
 	Glob string `toml:"glob"`
+
+	// RefreshInterval, if > 0, polls the source on this cadence:
+	//   URL  — conditional GET with stored ETag/Last-Modified.
+	//   Path — stat for mtime/size change.
+	//   Glob — re-expand and stat each match.
+	// Unset means manual-only refresh via POST /v1/refresh.
+	//
+	// Values are Go duration strings: "30s", "5m", "1h", "1h30m", "500ms".
+	// Valid units: ns, us, ms, s, m, h. No "d"/"w" — use "24h" / "168h".
+	RefreshInterval Duration `toml:"refresh_interval"`
 }
 
 // Load reads, defaults, env-overrides, and validates a TOML config file.

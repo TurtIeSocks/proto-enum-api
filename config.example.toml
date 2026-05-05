@@ -19,14 +19,31 @@ cache_dir = "./.cache"
 # One [[sources]] entry per proto input. Set exactly one of url, path, glob.
 # All enums from all sources end up in a single index keyed by their proto
 # fully-qualified name (<package>.<message-chain>.<EnumName>).
+#
+# Optional `refresh_interval` polls the source on a cadence:
+#   URL  — conditional GET (If-None-Match / If-Modified-Since); 304 = no work.
+#   Path — stat for mtime/size change.
+#   Glob — re-expand and stat each match.
+# Unset means manual-only refresh via POST /v1/refresh.
+#
+# Accepted values are Go duration strings — a number followed by a unit, with
+# multiple components allowed:
+#   "30s"      — 30 seconds
+#   "5m"       — 5 minutes
+#   "1h"       — 1 hour
+#   "1h30m"    — 1 hour 30 minutes
+#   "500ms"    — 500 milliseconds (rarely useful here)
+# Valid units: ns, us (or µs), ms, s, m, h. No "d"/"w" — write "24h"/"168h".
 
 # Example 1 — fetch a remote .proto:
 # [[sources]]
-# url = "https://example.com/schema.proto"
+# url              = "https://example.com/schema.proto"
+# refresh_interval = "5m"
 
 # Example 2 — point at a local file:
 # [[sources]]
-# path = "./protos/orders.proto"
+# path             = "./protos/orders.proto"
+# refresh_interval = "48h"
 
 # Example 3 — load every .proto in a directory (non-recursive — use a separate
 # entry per subdirectory if you need recursion):

@@ -35,7 +35,7 @@ func newTestRouter(t *testing.T) http.Handler {
 			},
 		},
 	}
-	return NewRouter(proto.NewEnumIndex(enums), "topsecret")
+	return NewRouterFromIndex(proto.NewEnumIndex(enums), "topsecret")
 }
 
 func authed(req *http.Request) *http.Request {
