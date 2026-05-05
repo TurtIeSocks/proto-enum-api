@@ -28,6 +28,7 @@ All require `Authorization: Bearer <secret>`. All under `/v1`.
 | GET    | `/v1/enums`                         | All enum FQNs (filter via `?search=`)            |
 | GET    | `/v1/enums/{name}`                  | Full enum (values + numbers)                     |
 | GET    | `/v1/enums/{name}/values/{key}`     | Resolve value by **either** number or name       |
+| POST   | `/v1/refresh`                       | Forces fresh protos to be read/fetched           |
 
 `{name}` is the canonical FQN (e.g. `my.pkg.Outer.Inner.Status`).
 
@@ -37,13 +38,13 @@ collision (value names cannot start with a digit).
 
 ## Response features
 
-- **ETag + Cache-Control**: 200 responses carry an `ETag` derived from the
+* **ETag + Cache-Control**: 200 responses carry an `ETag` derived from the
   loaded index. Send `If-None-Match: <etag>` to get `304 Not Modified`
   with no body.
-- **gzip**: send `Accept-Encoding: gzip` and the response is compressed.
-- **RFC 7807 errors**: 4xx/5xx responses use `application/problem+json`
+* **gzip**: send `Accept-Encoding: gzip` and the response is compressed.
+* **RFC 7807 errors**: 4xx/5xx responses use `application/problem+json`
   with `type`, `title`, `status`, `detail`, `instance` fields.
-- **WWW-Authenticate**: 401s include `WWW-Authenticate: Bearer realm="proto-enum-api"`
+* **WWW-Authenticate**: 401s include `WWW-Authenticate: Bearer realm="proto-enum-api"`
   per RFC 7235 (once you implement the middleware).
 
 ## Configuration
