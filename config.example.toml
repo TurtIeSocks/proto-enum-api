@@ -1,0 +1,37 @@
+# proto-enum-api — example configuration.
+# Copy to config.toml and edit, or pass --config path/to/yours.toml.
+
+# Address the HTTP server binds. Override with the LISTEN env var.
+listen = ":8080"
+
+# Bearer token required by the API. Override with the API_SECRET env var
+# (recommended — keeps secrets out of the file).
+secret = ""
+
+# When true, parser rejects non-spec proto files. Off by default to tolerate
+# dumped/leaked protos that may be slightly off-spec.
+strict = false
+
+# Where downloaded proto files are cached. Filenames are derived from the
+# URL hash, so the directory is safe to delete and repopulate.
+cache_dir = "./.cache"
+
+# One [[sources]] entry per proto input. Set exactly one of url, path, glob.
+# All enums from all sources end up in a single index keyed by their proto
+# fully-qualified name (<package>.<message-chain>.<EnumName>).
+
+# Example 1 — fetch a remote .proto:
+# [[sources]]
+# url = "https://example.com/schema.proto"
+
+# Example 2 — point at a local file:
+# [[sources]]
+# path = "./protos/orders.proto"
+
+# Example 3 — load every .proto in a directory (non-recursive — use a separate
+# entry per subdirectory if you need recursion):
+# [[sources]]
+# glob = "./protos/*.proto"
+
+[[sources]]
+path = "./schema.proto"

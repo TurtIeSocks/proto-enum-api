@@ -23,3 +23,9 @@ go.work.sum
 
 # env file
 .env
+
+# Downloaded proto cache (regenerated at startup from [[sources]] URLs)
+/.cache/
+
+# Local config — config.example.toml is checked in
+/config.toml

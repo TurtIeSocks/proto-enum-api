@@ -1,0 +1,28 @@
+syntax = "proto3";
+package test.sample;
+
+enum ClientOperatingSystem {
+  CLIENT_OPERATING_SYSTEM_OS_UNKNOWN = 0;
+  CLIENT_OPERATING_SYSTEM_OS_ANDROID = 1;
+  CLIENT_OPERATING_SYSTEM_OS_IOS = 2;
+}
+
+message ProxyResponseProto {
+  enum Status {
+    STATUS_UNSET = 0;
+    STATUS_OK = 1;
+    STATUS_ERROR = 2;
+  }
+  Status status = 1;
+}
+
+message Outer {
+  message Inner {
+    enum Status {
+      STATUS_INNER_UNSET = 0;
+      STATUS_INNER_OK = 1;
+    }
+    Status s = 1;
+  }
+  Inner i = 1;
+}

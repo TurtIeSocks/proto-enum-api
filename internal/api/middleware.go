@@ -1,0 +1,101 @@
+package api
+
+import (
+	"compress/gzip"
+	"net/http"
+	"strings"
+)
+
+// cacheControlValue applies to every cacheable response. The data is loaded
+// once at startup and never changes at runtime, so a long max-age plus
+// `immutable` is correct — clients with a fresh response can hold it for an
+// hour without revalidating, and `immutable` tells them not to bother
+// revalidating on user-triggered reload either.
+const cacheControlValue = "public, max-age=3600, immutable"
+
+// Cache adds ETag + Cache-Control headers on 200 responses and short-circuits
+// matching If-None-Match requests with 304 Not Modified.
+//
+// The ETag is the same for every response in a given server lifetime,
+// because the underlying index is built once at startup. Conceptually,
+// "this server's enum corpus" is the cacheable resource; individual
+// endpoints are projections of it.
+func Cache(etag string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if matches(r.Header.Get("If-None-Match"), etag) {
+			h := w.Header()
+			h.Set("ETag", etag)
+			h.Set("Cache-Control", cacheControlValue)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		next.ServeHTTP(&cacheWriter{ResponseWriter: w, etag: etag}, r)
+	})
+}
+
+// matches handles the simple cases of If-None-Match: a single value (with or
+// without quotes) and the wildcard "*". Multi-value lists fall back to
+// substring matching, which is good enough for our single-ETag world.
+func matches(header, etag string) bool {
+	if header == "" {
+		return false
+	}
+	if strings.TrimSpace(header) == "*" {
+		return true
+	}
+	return strings.Contains(header, etag)
+}
+
+type cacheWriter struct {
+	http.ResponseWriter
+	etag        string
+	wroteHeader bool
+}
+
+func (cw *cacheWriter) WriteHeader(status int) {
+	if cw.wroteHeader {
+		return
+	}
+	if status == http.StatusOK {
+		h := cw.Header()
+		h.Set("ETag", cw.etag)
+		h.Set("Cache-Control", cacheControlValue)
+	}
+	cw.ResponseWriter.WriteHeader(status)
+	cw.wroteHeader = true
+}
+
+func (cw *cacheWriter) Write(b []byte) (int, error) {
+	if !cw.wroteHeader {
+		cw.WriteHeader(http.StatusOK)
+	}
+	return cw.ResponseWriter.Write(b)
+}
+
+// Gzip compresses responses when the client advertises Accept-Encoding: gzip.
+// Skipped otherwise, so a curl with no Accept-Encoding still gets readable
+// JSON without manual decompression.
+func Gzip(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		h := w.Header()
+		h.Set("Content-Encoding", "gzip")
+		h.Set("Vary", "Accept-Encoding")
+		// Length will be wrong for the compressed body; safest to drop it.
+		h.Del("Content-Length")
+
+		gw := gzip.NewWriter(w)
+		defer gw.Close()
+		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, gw: gw}, r)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	gw *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(b []byte) (int, error) { return g.gw.Write(b) }
