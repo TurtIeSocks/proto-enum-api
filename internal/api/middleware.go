@@ -3,6 +3,7 @@ package api
 import (
 	"compress/gzip"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -103,29 +104,56 @@ type gzipResponseWriter struct {
 func (g *gzipResponseWriter) Write(b []byte) (int, error) { return g.gw.Write(b) }
 
 // Logger emits one line per request after the inner handler returns,
-// recording method, path, response status, and wall-clock duration.
+// recording client IP, method, path, response status, response size, and
+// wall-clock duration.
 //
 // Place this as the outermost middleware so 401s from RequireBearer and
 // 304s from Cache are still observed — those layers write status codes
 // directly and would be invisible to a logger sitting deeper in the chain.
+//
+// Response size is measured at this layer, so for gzipped responses it
+// reflects the on-the-wire (compressed) byte count, not the original JSON.
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		lw := &loggingWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(lw, r)
-		log.Printf("%s %s -> %d (%s)", r.Method, r.URL.Path, lw.status, time.Since(start))
+		log.Printf("%s %s %s -> %d %dB (%s)",
+			clientIP(r), r.Method, r.URL.Path, lw.status, lw.bytes, time.Since(start))
 	})
 }
 
-// loggingWriter remembers the status passed to WriteHeader so Logger can
-// report it after the handler chain returns. Defaults to 200 because Go's
-// net/http treats a Write without an explicit WriteHeader as an implicit 200.
+// clientIP returns the request's source address with the port stripped,
+// or "unknown" if RemoteAddr is unset (e.g. synthetic requests). Note that
+// behind a proxy this is the proxy's address — honoring X-Forwarded-For
+// would require trusting the proxy, which we don't configure here.
+func clientIP(r *http.Request) string {
+	if r.RemoteAddr == "" {
+		return "unknown"
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// loggingWriter remembers the status passed to WriteHeader and the byte
+// count passed to Write so Logger can report them after the handler chain
+// returns. Defaults status to 200 because Go's net/http treats a Write
+// without an explicit WriteHeader as an implicit 200.
 type loggingWriter struct {
 	http.ResponseWriter
 	status int
+	bytes  int
 }
 
 func (lw *loggingWriter) WriteHeader(status int) {
 	lw.status = status
 	lw.ResponseWriter.WriteHeader(status)
+}
+
+func (lw *loggingWriter) Write(b []byte) (int, error) {
+	n, err := lw.ResponseWriter.Write(b)
+	lw.bytes += n
+	return n, err
 }
