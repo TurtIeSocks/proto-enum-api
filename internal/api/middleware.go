@@ -2,8 +2,10 @@ package api
 
 import (
 	"compress/gzip"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // cacheControlValue applies to every cacheable response. The data is loaded
@@ -99,3 +101,31 @@ type gzipResponseWriter struct {
 }
 
 func (g *gzipResponseWriter) Write(b []byte) (int, error) { return g.gw.Write(b) }
+
+// Logger emits one line per request after the inner handler returns,
+// recording method, path, response status, and wall-clock duration.
+//
+// Place this as the outermost middleware so 401s from RequireBearer and
+// 304s from Cache are still observed — those layers write status codes
+// directly and would be invisible to a logger sitting deeper in the chain.
+func Logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		lw := &loggingWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(lw, r)
+		log.Printf("%s %s -> %d (%s)", r.Method, r.URL.Path, lw.status, time.Since(start))
+	})
+}
+
+// loggingWriter remembers the status passed to WriteHeader so Logger can
+// report it after the handler chain returns. Defaults to 200 because Go's
+// net/http treats a Write without an explicit WriteHeader as an implicit 200.
+type loggingWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (lw *loggingWriter) WriteHeader(status int) {
+	lw.status = status
+	lw.ResponseWriter.WriteHeader(status)
+}

@@ -13,6 +13,7 @@ import (
 //
 // Middleware order (outermost first):
 //
+//	Logger         — records method/path/status/duration for every request
 //	RequireBearer  — auth gate; rejects with 401 before any work happens
 //	Cache          — ETag + Cache-Control + If-None-Match handling
 //	Gzip           — opportunistic compression for clients that opt in
@@ -25,7 +26,7 @@ func NewRouter(idx *proto.EnumIndex, secret string) http.Handler {
 	mux.HandleFunc("GET /v1/enums/{name}/values/{key}", h.resolveValue)
 
 	etag := computeETag(idx)
-	return RequireBearer(secret, Cache(etag, Gzip(mux)))
+	return Logger(RequireBearer(secret, Cache(etag, Gzip(mux))))
 }
 
 // computeETag derives a deterministic ETag from the index's enum FQNs and
