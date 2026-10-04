@@ -1,0 +1,21 @@
+# shep app definition, read by `shep start` and by shep-deploy.
+#
+# Host-specific settings (cwd, user, a different port) go in
+# Flockfile.override.toml beside the operator's checkout. It is gitignored,
+# shep-deploy links it into every release, and it wins on every key it names.
+
+[[app]]
+name = "proto-enum-api"
+script = "./proto-enum-api"
+max_memory = "512M"
+
+# Matches `listen` in config.example.toml. Override the target if your
+# config.toml listens elsewhere.
+[app.readiness_probe]
+kind = "http"
+target = "http://127.0.0.1:8080/healthz"
+interval = "5s"
+timeout = "3s"
+
+[dog.deploy.build]
+command = "go build -trimpath -o proto-enum-api ."
