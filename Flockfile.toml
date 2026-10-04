@@ -6,7 +6,7 @@
 
 [[app]]
 name = "proto-enum-api"
-script = "proto-enum-api"
+script = "./proto-enum-api"
 max_memory = "512M"
 
 # Matches `listen` in config.example.toml. Override the target if your
